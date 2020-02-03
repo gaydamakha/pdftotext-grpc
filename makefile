@@ -1,10 +1,4 @@
-all: certs build
-
-fmt:
-	go fmt
-	cd ./client && go fmt
-	cd ./server && go fmt
-	cd ./cmd && go fmt
+all: certs proto build
 
 certs:
 	openssl genrsa \
@@ -17,13 +11,23 @@ certs:
 		-days 3650 \
 		-subj /CN=localhost
 
-build:
-	go get -u gitlab.com/gaydamakha/ter-grpc
-	go build
-
 proto:
 	protoc \
 		./messaging/messaging.proto \
 		--go_out=plugins=grpc:.
 
-.PHONY: fmt install proto build certs
+build:
+	go install .
+
+fmt:
+	go fmt
+	cd ./client && go fmt
+	cd ./server && go fmt
+	cd ./cmd && go fmt
+
+clean:
+	rm go.sum
+	rm ./messaging/messaging.pb.go
+	rm $$GOPATH/bin/ter-grpc
+
+.PHONY: certs proto build fmt clean

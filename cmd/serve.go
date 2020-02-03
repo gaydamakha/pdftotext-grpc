@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"gitlab.com/gaydamakha/ter-grpc/server"
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 )
 
 var Serve = cli.Command{

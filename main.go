@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"gitlab.com/gaydamakha/ter-grpc/cmd"
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {

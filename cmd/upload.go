@@ -6,7 +6,7 @@ import (
 
 	"gitlab.com/gaydamakha/ter-grpc/client"
 	"golang.org/x/net/context"
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 )
 
 var Upload = cli.Command{
