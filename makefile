@@ -1,7 +1,4 @@
-all: certs build install
-
-install:
-	go install -v
+all: certs build
 
 fmt:
 	go fmt

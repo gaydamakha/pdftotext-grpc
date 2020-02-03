@@ -70,7 +70,9 @@ func uploadAction(c *cli.Context) (err error) {
 	must(err)
 	defer clt.Close()
 
-	fmt.Printf("%d\n", stat.FinishedAt.Sub(stat.StartedAt).Nanoseconds())
+	fmt.Printf("Started at: %d\n", stat.StartedAt.UnixNano())
+	fmt.Printf("Finished at: %d\n", stat.FinishedAt.UnixNano())
+	fmt.Printf("Time elapsed: %d\n", stat.FinishedAt.Sub(stat.StartedAt).Nanoseconds())
 
 	return
 }
