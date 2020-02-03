@@ -1,4 +1,3 @@
-  
 package client
 
 import (
@@ -6,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"gitlab.com/gaydamakha/ter-grpc/messaging"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"gitlab.com/gaydamakha/ter-grpc/messaging"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

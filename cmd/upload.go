@@ -47,7 +47,7 @@ func uploadAction(c *cli.Context) (err error) {
 		file            = c.String("file")
 		rootCertificate = c.String("root-certificate")
 		compress        = c.Bool("compress")
-		clt          	client.Client
+		clt             client.Client
 	)
 
 	if address == "" {
@@ -66,7 +66,7 @@ func uploadAction(c *cli.Context) (err error) {
 	})
 	must(err)
 	clt = &grpcClient
-	
+
 	stat, err := clt.UploadFile(context.Background(), file)
 	must(err)
 	defer client.Close()

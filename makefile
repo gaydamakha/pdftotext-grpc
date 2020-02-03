@@ -1,5 +1,4 @@
 all: certs build install
-	go get https://gitlab.com/gaydamakha/ter-grpc
 
 install:
 	go install -v
@@ -22,9 +21,12 @@ certs:
 		-subj /CN=localhost
 
 build:
+	go get gitlab.com/gaydamakha/ter-grpc
+	go build
+
+proto:
 	protoc \
 		./messaging/messaging.proto \
 		--go_out=plugins=grpc:.
-	go build
 
-.PHONY: fmt install grpc certs
+.PHONY: fmt install proto build certs

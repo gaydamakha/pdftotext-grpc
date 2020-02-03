@@ -6,9 +6,9 @@ import (
 	"os"
 	"strconv"
 
-	"gitlab.com/gaydamakha/ter-grpc/messaging"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"gitlab.com/gaydamakha/ter-grpc/messaging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
