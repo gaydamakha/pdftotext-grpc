@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"gitlab.com/gaydamakha/ter-grpc/client"
 	"golang.org/x/net/context"
@@ -47,7 +46,7 @@ func uploadAction(c *cli.Context) (err error) {
 		file            = c.String("file")
 		rootCertificate = c.String("root-certificate")
 		compress        = c.Bool("compress")
-		clt             client.Client
+		clt             *client.ClientGRPC
 	)
 
 	if address == "" {
@@ -69,7 +68,7 @@ func uploadAction(c *cli.Context) (err error) {
 
 	stat, err := clt.UploadFile(context.Background(), file)
 	must(err)
-	defer client.Close()
+	defer clt.Close()
 
 	fmt.Printf("%d\n", stat.FinishedAt.Sub(stat.StartedAt).Nanoseconds())
 

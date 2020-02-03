@@ -21,7 +21,7 @@ certs:
 		-subj /CN=localhost
 
 build:
-	go get gitlab.com/gaydamakha/ter-grpc
+	go get -u gitlab.com/gaydamakha/ter-grpc
 	go build
 
 proto:

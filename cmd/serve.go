@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-
 	"gitlab.com/gaydamakha/ter-grpc/server"
 	"gopkg.in/urfave/cli.v2"
 )
@@ -33,7 +31,7 @@ func serveAction(c *cli.Context) (err error) {
 		port        = c.Int("port")
 		key         = c.String("key")
 		certificate = c.String("certificate")
-		srv         server.Server
+		srv         *server.ServerGRPC
 	)
 
 	grpcServer, err := server.NewServerGRPC(server.ServerGRPCConfig{
