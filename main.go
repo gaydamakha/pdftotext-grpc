@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"gitlab.com/gaydamakha/ter-grpc/cmd"
 	"github.com/urfave/cli/v2"
+	"gitlab.com/gaydamakha/ter-grpc/cmd"
 )
 
 func main() {

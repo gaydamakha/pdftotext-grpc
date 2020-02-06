@@ -100,6 +100,7 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 		status  *messaging.UploadStatus
 	)
 
+	// Get a file handle for the file we want to upload
 	file, err = os.Open(f)
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -109,6 +110,8 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 	}
 	defer file.Close()
 
+	// Open a stream-based connection with the
+	// gRPC server
 	stream, err := c.client.Upload(ctx)
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -118,9 +121,15 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 	}
 	defer stream.CloseSend()
 
+	// Start timing the execution
 	stats.StartedAt = time.Now()
+
+	// Allocate a buffer with `chunkSize` as the capacity
+	// and length (making a 0 array of the size of `chunkSize`)
 	buf = make([]byte, c.chunkSize)
 	for writing {
+		// put as many bytes as `chunkSize` into the
+		// buf array.
 		n, err = file.Read(buf)
 		if err != nil {
 			if err == io.EOF {
@@ -135,6 +144,12 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 		}
 
 		err = stream.Send(&messaging.Chunk{
+			// because we might've read less than
+			// `chunkSize` we want to only send up to
+			// `n` (amount of bytes read).
+			// note: slicing (`:n`) won't copy the
+			// underlying data, so this as fast as taking
+			// a "pointer" to the underlying storage.
 			Content: buf[:n],
 		})
 		if err != nil {
@@ -144,6 +159,8 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 		}
 	}
 
+	// keep track of the end time so that we can take the elapsed
+	// time later
 	stats.FinishedAt = time.Now()
 
 	status, err = stream.CloseAndRecv()

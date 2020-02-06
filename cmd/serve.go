@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"gitlab.com/gaydamakha/ter-grpc/server"
 	"github.com/urfave/cli/v2"
+	"gitlab.com/gaydamakha/ter-grpc/server"
 )
 
 var Serve = cli.Command{

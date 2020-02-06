@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/urfave/cli/v2"
 	"gitlab.com/gaydamakha/ter-grpc/client"
 	"golang.org/x/net/context"
-	"github.com/urfave/cli/v2"
 )
 
 var Upload = cli.Command{
