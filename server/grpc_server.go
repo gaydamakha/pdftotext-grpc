@@ -30,6 +30,8 @@ type ServerGRPCConfig struct {
 	Port        int
 }
 
+// var filename string
+
 func NewServerGRPC(cfg ServerGRPCConfig) (s ServerGRPC, err error) {
 	s.logger = zerolog.New(os.Stdout).
 		With().
@@ -93,14 +95,16 @@ func (s *ServerGRPC) Listen() (err error) {
 // chunks that form a complete file.
 func (s *ServerGRPC) Upload(stream messaging.UploadService_UploadServer) (err error) {
 	// while there are messages coming
-	f := "DocLuber.txt"
-	file, err := os.Open(f)
+	fn := "pdftotext.pdf"
+	file, err := os.Create(fn)
 	if err != nil {
 		err = errors.Wrapf(err,
-			"failed to open file %s",
-			f)
+			"failed to create file %s",
+			fn)
 		return
 	}
+	defer file.Close()
+
 	for {
 		chunk, err := stream.Recv()
 		if err != nil {
@@ -115,20 +119,20 @@ func (s *ServerGRPC) Upload(stream messaging.UploadService_UploadServer) (err er
 		if err != nil {
 			return errors.Wrapf(err,
 				"failed to write into file %s",
-				f)
+				fn)
 		}
 	}
 
 END:
 	s.logger.Info().Msg("upload received")
-	_, err = exec.Command("pdftotext", "~/DocLuber.pdf").Output()
+	_, err = exec.Command("pdftotext", "pdftotext.pdf").Output()
 	if err != nil {
 		err = errors.Wrapf(err,
 			"pdftotext didn't worked")
 		return
 	}
 	// once the transmission finished, send the
-	// confirmation if nothign went wrong
+	// confirmation if nothing went wrong
 	err = stream.SendAndClose(&messaging.UploadStatus{
 		Message: "Upload received with success",
 		Code:    messaging.UploadStatusCode_Ok,

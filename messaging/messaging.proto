@@ -4,11 +4,16 @@ package messaging;
 
 service UploadService {
     rpc Upload(stream Chunk) returns (UploadStatus) {}
+    // rpc GiveFilename(Filename) returns (UploadStatus) {}
 }
 
 message Chunk {
     bytes Content = 1;
 }
+
+// message Filename {
+//     string Filename = 1;
+// }
 
 enum UploadStatusCode {
     Unknown = 0;

@@ -121,6 +121,21 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 	}
 	defer stream.CloseSend()
 
+	// //Provide a filename
+	// status, err = c.client.GiveFilename(f)
+	// if err != nil {
+	// 	err = errors.Wrapf(err,
+	// 		"failed to upload a filename"
+	// 	)
+	// 	return
+	// }
+	// if status.Code != messaging.UploadStatusCode_Ok {
+	// 	err = errors.Errorf(
+	// 		"upload of filename failed - msg: %s",
+	// 		status.Message)
+	// 	return
+	// }
+
 	// Start timing the execution
 	stats.StartedAt = time.Now()
 
