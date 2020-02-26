@@ -2,6 +2,7 @@ package server
 
 import (
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -103,7 +104,6 @@ func (s *ServerGRPC) Upload(stream messaging.UploadService_UploadServer) (err er
 			fn)
 		return
 	}
-	defer file.Close()
 
 	for {
 		chunk, err := stream.Recv()
@@ -125,21 +125,55 @@ func (s *ServerGRPC) Upload(stream messaging.UploadService_UploadServer) (err er
 
 END:
 	s.logger.Info().Msg("upload received")
-	_, err = exec.Command("pdftotext", "pdftotext.pdf").Output()
+	txtfn := "pdftotext.txt"
+	_, err = exec.Command("pdftotext", fn, txtfn).Output()
 	if err != nil {
 		err = errors.Wrapf(err,
 			"pdftotext didn't worked")
 		return
 	}
+
+	//open recently created file
+	//pdftotext.txt is the default filename
+	txtfile, err := os.Open("pdftotext.txt")
+	if err != nil {
+		err = errors.Wrapf(err,
+			"can't open result file")
+		return
+	}
+
+	// read the result content
+	text, err := ioutil.ReadAll(txtfile)
+	if err != nil {
+		err = errors.Wrapf(err,
+			"can't read from result file")
+		return
+	}
+
 	// once the transmission finished, send the
-	// confirmation if nothing went wrong
+	// confirmation and the text if nothing went wrong
 	err = stream.SendAndClose(&messaging.UploadStatus{
 		Message: "Upload received with success",
+		Text: text,
 		Code:    messaging.UploadStatusCode_Ok,
 	})
 	if err != nil {
 		err = errors.Wrapf(err,
 			"failed to send status code")
+		return
+	}
+
+	//Be clean.
+	file.Close()
+	if os.Remove(fn) != nil {
+		err = errors.Wrapf(err,
+			"failed to remove tmp pdf file")
+		return
+	}
+	txtfile.Close()
+	if os.Remove(txtfn) != nil {
+		err = errors.Wrapf(err,
+			"failed to remove tmp txt file")
 		return
 	}
 

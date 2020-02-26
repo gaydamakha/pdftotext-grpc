@@ -2,6 +2,7 @@ package client
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -121,21 +122,6 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 	}
 	defer stream.CloseSend()
 
-	// //Provide a filename
-	// status, err = c.client.GiveFilename(f)
-	// if err != nil {
-	// 	err = errors.Wrapf(err,
-	// 		"failed to upload a filename"
-	// 	)
-	// 	return
-	// }
-	// if status.Code != messaging.UploadStatusCode_Ok {
-	// 	err = errors.Errorf(
-	// 		"upload of filename failed - msg: %s",
-	// 		status.Message)
-	// 	return
-	// }
-
 	// Start timing the execution
 	stats.StartedAt = time.Now()
 
@@ -189,6 +175,15 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 		err = errors.Errorf(
 			"upload failed - msg: %s",
 			status.Message)
+		return
+	}
+
+	txtfn := f + ".txt"
+	err = ioutil.WriteFile(txtfn, status.Text, 0644)
+	if err != nil {
+		err = errors.Wrapf(err,
+				"failed to create result file %s",
+				txtfn)
 		return
 	}
 
