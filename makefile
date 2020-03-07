@@ -1,4 +1,4 @@
-all: certs proto build
+all: proto build
 
 certs:
 	openssl genrsa \
@@ -34,10 +34,5 @@ serve-tls:
 	$$GOPATH/bin/ter-grpc serve \
         --key ./certs/localhost.key \
         --certificate ./certs/localhost.cert
-
-upload-tls:
-	$$GOPATH/bin/ter-grpc upload \
-        --root-certificate ./certs/localhost.cert \
-        --file $(file)
 
 .PHONY: certs proto build fmt clean

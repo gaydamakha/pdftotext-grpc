@@ -13,7 +13,7 @@ func main() {
 		Usage: "I dunno for a while",
 		Commands: []*cli.Command{
 			&cmd.Serve,
-			&cmd.Upload,
+			&cmd.PdfToText,
 		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

@@ -4,6 +4,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,7 +25,7 @@ import (
 type ClientGRPC struct {
 	logger    zerolog.Logger
 	conn      *grpc.ClientConn
-	client    messaging.UploadServiceClient
+	client    messaging.PdftotextServiceClient
 	chunkSize int
 }
 
@@ -87,18 +90,18 @@ func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 		return
 	}
 
-	c.client = messaging.NewUploadServiceClient(c.conn)
+	c.client = messaging.NewPdftotextServiceClient(c.conn)
 
 	return
 }
 
-func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err error) {
+func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (stats Stats, err error) {
 	var (
 		writing = true
 		buf     []byte
 		n       int
 		file    *os.File
-		status  *messaging.UploadStatus
+		status  *messaging.TextAndStatus
 	)
 
 	// Get a file handle for the file we want to upload
@@ -113,7 +116,7 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 
 	// Open a stream-based connection with the
 	// gRPC server
-	stream, err := c.client.Upload(ctx)
+	stream, err := c.client.UploadPdfAndGetText(ctx)
 	if err != nil {
 		err = errors.Wrapf(err,
 			"failed to create upload stream for file %s",
@@ -171,19 +174,20 @@ func (c *ClientGRPC) UploadFile(ctx context.Context, f string) (stats Stats, err
 		return
 	}
 
-	if status.Code != messaging.UploadStatusCode_Ok {
+	if status.Code != messaging.StatusCode_Ok {
 		err = errors.Errorf(
 			"upload failed - msg: %s",
 			status.Message)
 		return
 	}
 
-	txtfn := f + ".txt"
+	fn := filepath.Base(f)
+	txtfn := strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
 	err = ioutil.WriteFile(txtfn, status.Text, 0644)
 	if err != nil {
 		err = errors.Wrapf(err,
-				"failed to create result file %s",
-				txtfn)
+			"failed to create result file %s",
+			txtfn)
 		return
 	}
 

@@ -2,22 +2,36 @@ syntax = "proto3";
 
 package messaging;
 
-service UploadService {
-    rpc Upload(stream Chunk) returns (UploadStatus) {}
+service PdftotextService {
+    //Simple service, provides a resulting text in return message
+    rpc UploadPdfAndGetText(stream Chunk) returns (TextAndStatus) {}
+    //Pseudo bi-directional communicatiomn splitted into 2 services
+    rpc UploadPdf(stream Chunk) returns (IdAndStatus) {}
+    rpc GetText(Id) returns (stream Chunk) {}
 }
 
 message Chunk {
     bytes Content = 1;
 }
 
-enum UploadStatusCode {
+enum StatusCode {
     Unknown = 0;
     Ok = 1;
     Failed = 2;
 }
 
-message UploadStatus {
-    string Message = 1;
-    bytes Text = 2;
-    UploadStatusCode Code = 3;
+message TextAndStatus {
+    bytes Text = 1;
+    string Message = 2;
+    StatusCode Code = 3;
+}
+
+message IdAndStatus {
+    string Uuid = 1;
+    string Message = 2;
+    StatusCode Code = 3;
+}
+
+message Id {
+    string Uuid = 1;
 }

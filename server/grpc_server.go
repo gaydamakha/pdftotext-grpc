@@ -80,7 +80,7 @@ func (s *ServerGRPC) Listen() (err error) {
 	}
 
 	s.server = grpc.NewServer(grpcOpts...)
-	messaging.RegisterUploadServiceServer(s.server, s)
+	messaging.RegisterPdftotextServiceServer(s.server, s)
 
 	err = s.server.Serve(listener)
 	if err != nil {
@@ -91,10 +91,10 @@ func (s *ServerGRPC) Listen() (err error) {
 	return
 }
 
-// Upload implements the Upload method of the UploadService
+// UploadPdfAndGetTextt implements the UploadPdfAndGetText method of the PdftotextService
 // interface which is responsible for receiving a stream of
 // chunks that form a complete file.
-func (s *ServerGRPC) Upload(stream messaging.UploadService_UploadServer) (err error) {
+func (s *ServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextService_UploadPdfAndGetTextServer) (err error) {
 	// while there are messages coming
 	fn := "pdftotext.pdf"
 	file, err := os.Create(fn)
@@ -152,10 +152,10 @@ END:
 
 	// once the transmission finished, send the
 	// confirmation and the text if nothing went wrong
-	err = stream.SendAndClose(&messaging.UploadStatus{
-		Message: "Upload received with success",
-		Text: text,
-		Code:    messaging.UploadStatusCode_Ok,
+	err = stream.SendAndClose(&messaging.TextAndStatus{
+		Message: "File received with success",
+		Text:    text,
+		Code:    messaging.StatusCode_Ok,
 	})
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -187,3 +187,12 @@ func (s *ServerGRPC) Close() {
 
 	return
 }
+
+func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer) (err error) {
+	return
+}
+
+func (s *ServerGRPC) GetText(id *messaging.Id, stream messaging.PdftotextService_GetTextServer) (err error) {
+	return
+}
+
