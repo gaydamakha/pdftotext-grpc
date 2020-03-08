@@ -15,7 +15,6 @@ ssh $server ./launch.sh save_pid.txt
 address=$(ssh $server 'echo $SSH_CONNECTION' | cut -d ' ' -f3)
 $GOPATH/bin/ter-grpc pdftotext --root-certificate ../certs/localhost.cert --file ../fixtures/small.pdf --address $address:1313 --iters 5 --result-fn ./results.txt
 #TODO: collect different metrics
-#TODO: write them to the file
 
 ### METRICS PART END
 #Be clean
