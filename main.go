@@ -9,7 +9,7 @@ import (
 
 func main() {
 	app := &cli.App{
-		Name:  "ter",
+		Name:  "pdftotext-rpc",
 		Usage: "I dunno for a while",
 		Commands: []*cli.Command{
 			&cmd.Serve,

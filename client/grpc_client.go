@@ -104,7 +104,7 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 		status  *messaging.TextAndStatus
 	)
 
-	// Get a file handle for the file we want to upload
+	// Get a file handle for the file we want to process
 	file, err = os.Open(f)
 	if err != nil {
 		err = errors.Wrapf(err,

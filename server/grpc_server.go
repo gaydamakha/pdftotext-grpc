@@ -195,4 +195,3 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 func (s *ServerGRPC) GetText(id *messaging.Id, stream messaging.PdftotextService_GetTextServer) (err error) {
 	return
 }
-

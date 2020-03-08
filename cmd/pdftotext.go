@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 
 	"github.com/urfave/cli/v2"
@@ -13,7 +14,7 @@ import (
 var PdfToText = cli.Command{
 	Name:   "pdftotext",
 	Usage:  "extracts text from pdf file",
-	Action: uploadAction,
+	Action: pdftotextAction,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "address",
@@ -42,10 +43,15 @@ var PdfToText = cli.Command{
 			Usage: "number of times to transform the file (testing option)",
 			Value: 1,
 		},
+		&cli.StringFlag{
+			Name:  "result-fn",
+			Usage: "path to the result file",
+			Value: "",
+		},
 	},
 }
 
-func uploadAction(c *cli.Context) (err error) {
+func pdftotextAction(c *cli.Context) (err error) {
 	var (
 		chunkSize          = c.Int("chunk-size")
 		address            = c.String("address")
@@ -53,6 +59,7 @@ func uploadAction(c *cli.Context) (err error) {
 		rootCertificate    = c.String("root-certificate")
 		compress           = c.Bool("compress")
 		iters              = c.Int("iters")
+		resultfn           = c.String("result-fn")
 		statBegin, statEnd client.Stats
 		clt                *client.ClientGRPC
 	)
@@ -73,6 +80,8 @@ func uploadAction(c *cli.Context) (err error) {
 	})
 	must(err)
 	clt = &grpcClient
+	defer clt.Close()
+
 	statBegin, err = clt.PdfToTextFile(context.Background(), file, "1")
 	must(err)
 	for i := 2; i < iters; i++ {
@@ -85,11 +94,13 @@ func uploadAction(c *cli.Context) (err error) {
 		statEnd, err = clt.PdfToTextFile(context.Background(), file, strconv.Itoa(iters))
 		must(err)
 	}
-	defer clt.Close()
 
-	fmt.Printf("Started at: %d\n", statBegin.StartedAt.UnixNano())
-	fmt.Printf("Finished at: %d\n", statEnd.FinishedAt.UnixNano())
-	fmt.Printf("Time elapsed: %d\n", statEnd.FinishedAt.Sub(statBegin.StartedAt).Nanoseconds())
+	result := statEnd.FinishedAt.Sub(statBegin.StartedAt).String()
+	if resultfn != "" {
+		err = ioutil.WriteFile(resultfn, []byte(result), 0644)
+	} else {
+		fmt.Println(result)
+	}
 
 	return
 }
