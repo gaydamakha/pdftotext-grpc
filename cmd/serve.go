@@ -15,6 +15,11 @@ var Serve = cli.Command{
 			Usage: "port to bind to",
 			Value: 1313,
 		},
+		&cli.IntFlag{
+			Name:  "chunk-size",
+			Usage: "size of the chunk messages",
+			Value: (1 << 12),
+		},
 		&cli.StringFlag{
 			Name:  "key",
 			Usage: "path to TLS certificate",
@@ -31,6 +36,7 @@ func serveAction(c *cli.Context) (err error) {
 		port        = c.Int("port")
 		key         = c.String("key")
 		certificate = c.String("certificate")
+		chunkSize   = c.Int("chunk-size")
 		srv         *server.ServerGRPC
 	)
 
@@ -38,6 +44,7 @@ func serveAction(c *cli.Context) (err error) {
 		Port:        port,
 		Certificate: certificate,
 		Key:         key,
+		ChunkSize:   chunkSize,
 	})
 	must(err)
 	srv = &grpcServer

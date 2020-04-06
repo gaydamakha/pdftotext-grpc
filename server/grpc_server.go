@@ -1,13 +1,13 @@
 package server
 
 import (
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gitlab.com/gaydamakha/ter-grpc/messaging"
@@ -23,12 +23,16 @@ type ServerGRPC struct {
 	port        int
 	certificate string
 	key         string
+	chunkSize   int
+	compress    bool
 }
 
 type ServerGRPCConfig struct {
 	Certificate string
 	Key         string
 	Port        int
+	ChunkSize   int
+	Compress    bool
 }
 
 // var filename string
@@ -44,12 +48,26 @@ func NewServerGRPC(cfg ServerGRPCConfig) (s ServerGRPC, err error) {
 		return
 	}
 
+	switch {
+	case cfg.ChunkSize == 0:
+		err = errors.Errorf("ChunkSize must be specified")
+		return
+	case cfg.ChunkSize > (1 << 22):
+		err = errors.Errorf("ChunkSize must be < than 4MB")
+		return
+	default:
+		s.chunkSize = cfg.ChunkSize
+	}
+
 	s.port = cfg.Port
 	s.certificate = cfg.Certificate
 	s.key = cfg.Key
+	s.compress = cfg.Compress
 
 	return
 }
+
+
 
 func (s *ServerGRPC) Listen() (err error) {
 	var (
@@ -79,6 +97,13 @@ func (s *ServerGRPC) Listen() (err error) {
 		grpcOpts = append(grpcOpts, grpc.Creds(grpcCreds))
 	}
 
+	//TODO: check if compression is possible
+
+	// if s.compress {
+	// 	grpcOpts = append(grpcOpts,
+	// 		grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
+	// }
+
 	s.server = grpc.NewServer(grpcOpts...)
 	messaging.RegisterPdftotextServiceServer(s.server, s)
 
@@ -91,40 +116,20 @@ func (s *ServerGRPC) Listen() (err error) {
 	return
 }
 
+
 // UploadPdfAndGetTextt implements the UploadPdfAndGetText method of the PdftotextService
 // interface which is responsible for receiving a stream of
 // chunks that form a complete file.
 func (s *ServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextService_UploadPdfAndGetTextServer) (err error) {
 	// while there are messages coming
 	fn := "pdftotext.pdf"
-	file, err := os.Create(fn)
-	if err != nil {
-		err = errors.Wrapf(err,
-			"failed to create file %s",
-			fn)
-		return
-	}
 
-	for {
-		chunk, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				goto END
-			}
+    file, err := messaging.ReceiveFile(stream, fn)
+    if err != nil {
+        return
+    }
 
-			return errors.Wrapf(err,
-				"failed unexpectadely while reading chunks from stream")
-		}
-		_, err = file.Write(chunk.Content)
-		if err != nil {
-			return errors.Wrapf(err,
-				"failed to write into file %s",
-				fn)
-		}
-	}
-
-END:
-	s.logger.Info().Msg("upload received")
+	s.logger.Info().Msg("upload received: processing the text")
 	txtfn := "pdftotext.txt"
 	_, err = exec.Command("pdftotext", fn, txtfn).Output()
 	if err != nil {
@@ -134,8 +139,7 @@ END:
 	}
 
 	//open recently created file
-	//pdftotext.txt is the default filename
-	txtfile, err := os.Open("pdftotext.txt")
+	txtfile, err := os.Open(txtfn)
 	if err != nil {
 		err = errors.Wrapf(err,
 			"can't open result file")
@@ -180,18 +184,66 @@ END:
 	return
 }
 
-func (s *ServerGRPC) Close() {
-	if s.server != nil {
-		s.server.Stop()
+//UploadPdf implements UploadPdf method of PdftotextService. It receives a pdf file in the form of stream,
+// transforms it into the pdf file and returns an ID of the file.
+func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer) (err error) {
+	// while there are messages coming
+	fn := "pdftotext.pdf"
+    file, err := messaging.ReceiveFile(stream, fn)
+    if err != nil {
+        return
+    }
+    defer file.Close()
+
+    uuid := uuid.New().String()
+
+	s.logger.Info().Msg("upload received")
+	txtfn := "pdftotext" + uuid + ".txt"
+	_, err = exec.Command("pdftotext", fn, txtfn).Output()
+	if err != nil {
+		err = errors.Wrapf(err,
+			"pdftotext didn't worked")
+		return
+	}
+
+	stream.SendAndClose(&messaging.IdAndStatus{
+		Uuid:    uuid,
+		Message: "File received and processed with success",
+		Code:    messaging.StatusCode_Ok,
+	})
+	if err != nil {
+		err = errors.Wrapf(err,
+			"failed to send status code")
+		return
+	}
+
+	//Be clean.
+	file.Close()
+	if os.Remove(fn) != nil {
+		err = errors.Wrapf(err,
+			"failed to remove tmp pdf file")
+		return
 	}
 
 	return
 }
 
-func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer) (err error) {
+// GetText implements GetText method of PdftotextService. It returns a text file in the form of stream,
+// giving the id.
+func (s *ServerGRPC) GetText(id *messaging.Id, stream messaging.PdftotextService_GetTextServer) (err error) {
+    txtfn := "pdftotext" + id.Uuid + ".txt"
+	//TODO: maybe send a error code? to test
+    err = messaging.SendFile(stream, s.chunkSize, txtfn, true)
+    if err != nil {
+        return
+    }
+	s.logger.Info().Msg("text sent")
+
 	return
 }
 
-func (s *ServerGRPC) GetText(id *messaging.Id, stream messaging.PdftotextService_GetTextServer) (err error) {
-	return
+func (s *ServerGRPC) Close() {
+	if s.server != nil {
+		s.server.Stop()
+	}
 }

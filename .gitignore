@@ -1,3 +1,4 @@
 certs
 go.sum
 messaging/messaging.pb.go
+metrics

@@ -26,13 +26,12 @@ fmt:
 	cd ./cmd && go fmt
 
 clean:
-	rm go.sum
-	rm ./messaging/messaging.pb.go
-	rm $$GOPATH/bin/ter-grpc
+	rm -f go.sum
+	rm -f ./messaging/messaging.pb.go
+	rm -f $$GOPATH/bin/ter-grpc
+	rm -fr ./metrics	
 
-serve-tls:
-	$$GOPATH/bin/ter-grpc serve \
-        --key ./certs/localhost.key \
-        --certificate ./certs/localhost.cert
+metrics:
+	./scripts/collect_metrics.sh
 
-.PHONY: certs proto build fmt clean
+.PHONY: certs proto build fmt clean metrics

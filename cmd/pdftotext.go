@@ -23,12 +23,22 @@ var PdfToText = cli.Command{
 		},
 		&cli.IntFlag{
 			Name:  "chunk-size",
-			Usage: "size of the chunk messages (grpc only)",
+			Usage: "size of the chunk messages",
 			Value: (1 << 12),
 		},
 		&cli.StringFlag{
 			Name:  "file",
 			Usage: "file to transform",
+		},
+		&cli.StringFlag{
+			Name:  "result-fn",
+			Usage: "path to the metrics result file",
+			Value: "",
+		},
+        &cli.StringFlag{
+			Name:  "txt-dir",
+			Usage: "directiry to store returned text files",
+			Value: "./",
 		},
 		&cli.StringFlag{
 			Name:  "root-certificate",
@@ -38,15 +48,14 @@ var PdfToText = cli.Command{
 			Name:  "compress",
 			Usage: "whether or not to enable payload compression",
 		},
+		&cli.BoolFlag{
+			Name:  "bidirectional",
+			Usage: "whether or not to enable bidirectional communication",
+		},
 		&cli.IntFlag{
 			Name:  "iters",
 			Usage: "number of times to transform the file (testing option)",
 			Value: 1,
-		},
-		&cli.StringFlag{
-			Name:  "result-fn",
-			Usage: "path to the result file",
-			Value: "",
 		},
 	},
 }
@@ -59,7 +68,9 @@ func pdftotextAction(c *cli.Context) (err error) {
 		rootCertificate    = c.String("root-certificate")
 		compress           = c.Bool("compress")
 		iters              = c.Int("iters")
+        txt_dir            = c.String("txt-dir")
 		resultfn           = c.String("result-fn")
+		bi                 = c.Bool("bidirectional")
 		statBegin, statEnd client.Stats
 		clt                *client.ClientGRPC
 	)
@@ -82,17 +93,32 @@ func pdftotextAction(c *cli.Context) (err error) {
 	clt = &grpcClient
 	defer clt.Close()
 
-	statBegin, err = clt.PdfToTextFile(context.Background(), file, "1")
-	must(err)
-	for i := 2; i < iters; i++ {
-		_, err := clt.PdfToTextFile(context.Background(), file, strconv.Itoa(i))
+	if bi {
+		statBegin, err = clt.PdfToTextFileBi(context.Background(), file, "1", txt_dir)
 		must(err)
-	}
-	if iters == 1 {
-		statEnd = statBegin
+		for i := 2; i < iters; i++ {
+			_, err := clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(i), txt_dir)
+			must(err)
+		}
+		if iters == 1 {
+			statEnd = statBegin
+		} else {
+			statEnd, err = clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(iters), txt_dir)
+			must(err)
+		}
 	} else {
-		statEnd, err = clt.PdfToTextFile(context.Background(), file, strconv.Itoa(iters))
+		statBegin, err = clt.PdfToTextFile(context.Background(), file, "1", txt_dir)
 		must(err)
+		for i := 2; i < iters; i++ {
+			_, err := clt.PdfToTextFile(context.Background(), file, strconv.Itoa(i), txt_dir)
+			must(err)
+		}
+		if iters == 1 {
+			statEnd = statBegin
+		} else {
+			statEnd, err = clt.PdfToTextFile(context.Background(), file, strconv.Itoa(iters), txt_dir)
+			must(err)
+		}
 	}
 
 	result := statEnd.FinishedAt.Sub(statBegin.StartedAt).String()

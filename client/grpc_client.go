@@ -1,7 +1,6 @@
 package client
 
 import (
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -35,6 +34,8 @@ type ClientGRPCConfig struct {
 	RootCertificate string
 	Compress        bool
 }
+
+
 
 func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 	var (
@@ -95,24 +96,10 @@ func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 	return
 }
 
-func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (stats Stats, err error) {
+func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string, dir string) (stats Stats, err error) {
 	var (
-		writing = true
-		buf     []byte
-		n       int
-		file    *os.File
 		status  *messaging.TextAndStatus
 	)
-
-	// Get a file handle for the file we want to process
-	file, err = os.Open(f)
-	if err != nil {
-		err = errors.Wrapf(err,
-			"failed to open file %s",
-			f)
-		return
-	}
-	defer file.Close()
 
 	// Open a stream-based connection with the
 	// gRPC server
@@ -128,40 +115,10 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 	// Start timing the execution
 	stats.StartedAt = time.Now()
 
-	// Allocate a buffer with `chunkSize` as the capacity
-	// and length (making a 0 array of the size of `chunkSize`)
-	buf = make([]byte, c.chunkSize)
-	for writing {
-		// put as many bytes as `chunkSize` into the
-		// buf array.
-		n, err = file.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				writing = false
-				err = nil
-				continue
-			}
-
-			err = errors.Wrapf(err,
-				"errored while copying from file to buf")
-			return
-		}
-
-		err = stream.Send(&messaging.Chunk{
-			// because we might've read less than
-			// `chunkSize` we want to only send up to
-			// `n` (amount of bytes read).
-			// note: slicing (`:n`) won't copy the
-			// underlying data, so this as fast as taking
-			// a "pointer" to the underlying storage.
-			Content: buf[:n],
-		})
-		if err != nil {
-			err = errors.Wrapf(err,
-				"failed to send chunk via stream")
-			return
-		}
-	}
+    err = messaging.SendFile(stream, c.chunkSize, f, false)
+    if err != nil {
+        return
+    }
 
 	// keep track of the end time so that we can take the elapsed
 	// time later
@@ -182,7 +139,7 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 	}
 
 	fn := filepath.Base(f)
-	txtfn := strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
+	txtfn := dir + strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
 	err = ioutil.WriteFile(txtfn, status.Text, 0644)
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -199,3 +156,63 @@ func (c *ClientGRPC) Close() {
 		c.conn.Close()
 	}
 }
+
+func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string, i string, dir string) (stats Stats, err error) {
+	var (
+		status  *messaging.IdAndStatus
+	)
+	// Open a stream-based connection with the
+	// gRPC server
+	stream, err := c.client.UploadPdf(ctx)
+	if err != nil {
+		err = errors.Wrapf(err,
+			"failed to create upload stream for file %s",
+			f)
+		return
+	}
+	defer stream.CloseSend()
+
+	// Start timing the execution
+	stats.StartedAt = time.Now()
+
+	err = messaging.SendFile(stream, c.chunkSize, f, false)
+    if err != nil {
+        return
+    }
+
+	status, err = stream.CloseAndRecv()
+	if err != nil {
+		err = errors.Wrapf(err,
+			"failed to receive upstream status response")
+		return
+	}
+
+	if status.Code != messaging.StatusCode_Ok {
+		err = errors.Errorf(
+			"upload failed - msg: %s",
+			status.Message)
+		return
+	}
+
+	downloadStream, err := c.client.GetText(ctx, &messaging.Id{
+		Uuid: status.Uuid,
+	})
+	if err != nil {
+		err = errors.Wrapf(err,
+			"failed to create download stream for file %s",
+			f)
+		return
+	}
+
+	fn := filepath.Base(f)
+	txtfn := dir + strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
+	txtfile, err := messaging.ReceiveFile(downloadStream, txtfn)
+    defer txtfile.Close()
+    if err != nil {
+        return
+    }
+	stats.FinishedAt = time.Now()
+
+	return
+}
+
