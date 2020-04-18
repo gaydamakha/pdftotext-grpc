@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strconv"
+	"context"
 
 	"github.com/urfave/cli/v2"
 	"gitlab.com/gaydamakha/ter-grpc/client"
-	"golang.org/x/net/context"
 )
 
 var PdfToText = cli.Command{
@@ -68,7 +68,7 @@ func pdftotextAction(c *cli.Context) (err error) {
 		rootCertificate    = c.String("root-certificate")
 		compress           = c.Bool("compress")
 		iters              = c.Int("iters")
-        txt_dir            = c.String("txt-dir")
+        txtDir             = c.String("txt-dir")
 		resultfn           = c.String("result-fn")
 		bi                 = c.Bool("bidirectional")
 		statBegin, statEnd client.Stats
@@ -88,35 +88,36 @@ func pdftotextAction(c *cli.Context) (err error) {
 		RootCertificate: rootCertificate,
 		Compress:        compress,
 		ChunkSize:       chunkSize,
+		TxtDir:			 txtDir,
 	})
 	must(err)
 	clt = &grpcClient
 	defer clt.Close()
 
 	if bi {
-		statBegin, err = clt.PdfToTextFileBi(context.Background(), file, "1", txt_dir)
+		statBegin, err = clt.PdfToTextFileBi(context.Background(), file, "1")
 		must(err)
 		for i := 2; i < iters; i++ {
-			_, err := clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(i), txt_dir)
+			_, err := clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(i))
 			must(err)
 		}
 		if iters == 1 {
 			statEnd = statBegin
 		} else {
-			statEnd, err = clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(iters), txt_dir)
+			statEnd, err = clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(iters))
 			must(err)
 		}
 	} else {
-		statBegin, err = clt.PdfToTextFile(context.Background(), file, "1", txt_dir)
+		statBegin, err = clt.PdfToTextFile(context.Background(), file, "1")
 		must(err)
 		for i := 2; i < iters; i++ {
-			_, err := clt.PdfToTextFile(context.Background(), file, strconv.Itoa(i), txt_dir)
+			_, err := clt.PdfToTextFile(context.Background(), file, strconv.Itoa(i))
 			must(err)
 		}
 		if iters == 1 {
 			statEnd = statBegin
 		} else {
-			statEnd, err = clt.PdfToTextFile(context.Background(), file, strconv.Itoa(iters), txt_dir)
+			statEnd, err = clt.PdfToTextFile(context.Background(), file, strconv.Itoa(iters))
 			must(err)
 		}
 	}

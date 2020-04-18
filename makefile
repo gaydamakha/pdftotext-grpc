@@ -1,6 +1,7 @@
 all: proto build
 
 certs:
+	mkdir -p ./certs
 	openssl genrsa \
 		-out ./certs/localhost.key \
 		2048
@@ -29,7 +30,7 @@ clean:
 	rm -f go.sum
 	rm -f ./messaging/messaging.pb.go
 	rm -f $$GOPATH/bin/ter-grpc
-	rm -fr ./metrics	
+	rm -fr ./metrics
 
 metrics:
 	./scripts/collect_metrics.sh

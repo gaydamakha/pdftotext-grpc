@@ -1,12 +1,11 @@
-package client
+package server
 
 import (
-	"io/ioutil"
 	"os"
+	"io/ioutil"
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 	"context"
 
 	"github.com/pkg/errors"
@@ -19,28 +18,21 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
-// ClientGRPC provides the implementation of a file
-// uploader that streams chunks via protobuf-encoded
-// messages.
-type ClientGRPC struct {
+type workerClientGRPC struct {
 	logger    zerolog.Logger
 	conn      *grpc.ClientConn
-	client    messaging.PdftotextServiceClient
+	client    messaging.PdftotextWorkerClient
 	chunkSize int
-	txtDir	  string
 }
 
-type ClientGRPCConfig struct {
+type workerClientGRPCConfig struct {
 	Address         string
 	ChunkSize       int
 	RootCertificate string
 	Compress        bool
-	TxtDir			string
 }
 
-
-
-func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
+func newWorkerClientGRPC(cfg workerClientGRPCConfig) (c workerClientGRPC, err error) {
 	var (
 		grpcOpts  = []grpc.DialOption{}
 		grpcCreds credentials.TransportCredentials
@@ -81,18 +73,9 @@ func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 		c.chunkSize = cfg.ChunkSize
 	}
 
-	if cfg.TxtDir != "" {
-		c.txtDir = cfg.TxtDir
-		err = os.MkdirAll(c.txtDir, 0777)
-		if err != nil {
-			err = errors.Wrapf(err,
-			"failed to created directory to store result files")
-		}
-	}
-
 	c.logger = zerolog.New(os.Stdout).
 		With().
-		Str("from", "client").
+		Str("from", "worker_client").
 		Logger()
 
 	c.conn, err = grpc.Dial(cfg.Address, grpcOpts...)
@@ -103,12 +86,12 @@ func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 		return
 	}
 
-	c.client = messaging.NewPdftotextServiceClient(c.conn)
+	c.client = messaging.NewPdftotextWorkerClient(c.conn)
 
 	return
 }
 
-func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (stats Stats, err error) {
+func (c *workerClientGRPC) PdfToTextFile(ctx context.Context, f string, dir string) (txtfn string, err error) {
 	var (
 		status  *messaging.TextAndStatus
 	)
@@ -124,18 +107,11 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 	}
 	defer stream.CloseSend()
 
-	// Start timing the execution
-	stats.StartedAt = time.Now()
-
     err = messaging.SendFile(stream, c.chunkSize, f, false)
     if err != nil {
         return
-    }
-
-	// keep track of the end time so that we can take the elapsed
-	// time later
-	stats.FinishedAt = time.Now()
-
+	}
+	
 	status, err = stream.CloseAndRecv()
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -151,7 +127,7 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 	}
 
 	fn := filepath.Base(f)
-	txtfn := c.txtDir + strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
+	txtfn = dir + strings.TrimSuffix(fn, path.Ext(fn)) + ".txt"
 	err = ioutil.WriteFile(txtfn, status.Text, 0644)
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -163,68 +139,8 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 	return
 }
 
-func (c *ClientGRPC) Close() {
+func (c *workerClientGRPC) Close() {
 	if c.conn != nil {
 		c.conn.Close()
 	}
 }
-
-func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string, i string) (stats Stats, err error) {
-	var (
-		status  *messaging.IdAndStatus
-	)
-	// Open a stream-based connection with the
-	// gRPC server
-	stream, err := c.client.UploadPdf(ctx)
-	if err != nil {
-		err = errors.Wrapf(err,
-			"failed to create upload stream for file %s",
-			f)
-		return
-	}
-	defer stream.CloseSend()
-
-	// Start timing the execution
-	stats.StartedAt = time.Now()
-
-	err = messaging.SendFile(stream, c.chunkSize, f, false)
-    if err != nil {
-        return
-    }
-
-	status, err = stream.CloseAndRecv()
-	if err != nil {
-		err = errors.Wrapf(err,
-			"failed to receive upstream status response")
-		return
-	}
-
-	if status.Code != messaging.StatusCode_Ok {
-		err = errors.Errorf(
-			"upload failed - msg: %s",
-			status.Message)
-		return
-	}
-
-	downloadStream, err := c.client.GetText(ctx, &messaging.Id{
-		Uuid: status.Uuid,
-	})
-	if err != nil {
-		err = errors.Wrapf(err,
-			"failed to create download stream for file %s",
-			f)
-		return
-	}
-
-	fn := filepath.Base(f)
-	txtfn := c.txtDir + strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
-	txtfile, err := messaging.ReceiveFile(downloadStream, txtfn)
-    defer txtfile.Close()
-    if err != nil {
-        return
-    }
-	stats.FinishedAt = time.Now()
-
-	return
-}
-

@@ -5,9 +5,13 @@ package messaging;
 service PdftotextService {
     //Simple service, provides a resulting text in return message
     rpc UploadPdfAndGetText(stream Chunk) returns (TextAndStatus) {}
-    //Pseudo bi-directional communicatiomn splitted into 2 services
+    //Pseudo bi-directional stream communication splitted into 2 services
     rpc UploadPdf(stream Chunk) returns (IdAndStatus) {}
     rpc GetText(Id) returns (stream Chunk) {}
+}
+
+service PdftotextWorker {
+    rpc UploadPdfAndGetText(stream Chunk) returns (TextAndStatus) {}
 }
 
 message Chunk {

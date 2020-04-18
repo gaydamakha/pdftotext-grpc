@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"github.com/urfave/cli/v2"
-	"gitlab.com/gaydamakha/ter-grpc/server"
+	"gitlab.com/gaydamakha/ter-grpc/worker"
 )
 
-var Serve = cli.Command{
-	Name:   "serve",
+var WorkerServe = cli.Command{
+	Name:   "worker-serve",
 	Usage:  "initiates a gRPC server",
-	Action: serveAction,
+	Action: workerServeAction,
 	Flags: []cli.Flag{
 		&cli.IntFlag{
 			Name:  "port",
@@ -28,43 +28,30 @@ var Serve = cli.Command{
 			Name:  "certificate",
 			Usage: "path to TLS certificate",
 		},
-		&cli.StringSliceFlag{
-			Name:  "workers-addresses",
-			Usage: "adresses of pdftotext workers",
-			Value: cli.NewStringSlice(),
-		},
-		&cli.BoolFlag{
-			Name:  "compress",
-			Usage: "whether or not to enable payload compression",
-		},
 	},
 }
 
-func serveAction(c *cli.Context) (err error) {
+func workerServeAction(c *cli.Context) (err error) {
 	var (
 		port        = c.Int("port")
 		key         = c.String("key")
 		certificate = c.String("certificate")
-		compress    = c.Bool("compress")
 		chunkSize   = c.Int("chunk-size")
-		adWorkers	= c.StringSlice("workers-addresses")
-		srv         *server.ServerGRPC
+		wrk           *worker.WorkerServerGRPC
 	)
 
-	grpcServer, err := server.NewServerGRPC(server.ServerGRPCConfig{
+	grpcWorkerServer, err := worker.NewWorkerServerGRPC(worker.WorkerServerGRPCConfig{
 		Port:        port,
 		Certificate: certificate,
 		Key:         key,
 		ChunkSize:   chunkSize,
-		AdWorkers:   adWorkers,
-		Compress:	 compress,
 	})
 	must(err)
-	srv = &grpcServer
+	wrk = &grpcWorkerServer
 
-	err = srv.Listen()
+	err = wrk.Listen()
 	must(err)
-	defer srv.Close()
+	defer wrk.Close()
 
 	return
 }

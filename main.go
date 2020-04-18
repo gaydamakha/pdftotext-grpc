@@ -12,6 +12,7 @@ func main() {
 		Name:  "pdftotext-rpc",
 		Usage: "I dunno for a while",
 		Commands: []*cli.Command{
+			&cmd.WorkerServe,
 			&cmd.Serve,
 			&cmd.PdfToText,
 		},
