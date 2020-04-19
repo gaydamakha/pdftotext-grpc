@@ -32,7 +32,10 @@ clean:
 	rm -f $$GOPATH/bin/ter-grpc
 	rm -fr ./metrics
 
-metrics:
-	./scripts/collect_metrics.sh
+deploy:
+	./scripts/deploy.sh -f ./machines.txt -u gaydamakha -p 5000 -n 2
+
+stop:
+	./scripts/stop.sh
 
 .PHONY: certs proto build fmt clean metrics

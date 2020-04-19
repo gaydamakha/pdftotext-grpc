@@ -1,13 +1,13 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
-	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -27,7 +27,7 @@ type ServerGRPC struct {
 	key            string
 	chunkSize      int
 	compress       bool
-	workers		   []workerClientGRPC
+	workers        []workerClientGRPC
 	workerCount    int
 	nbWorkers      int
 	incomingFolder string
@@ -74,23 +74,22 @@ func NewServerGRPC(cfg ServerGRPCConfig) (s ServerGRPC, err error) {
 	s.incomingFolder = "pdftotext/incoming/"
 	s.outgoingFolder = "pdftotext/outgoing/"
 
-
 	if len(cfg.AdWorkers) == 0 {
 		err = errors.Errorf("Workers addresses must be specified")
 	}
 
 	for _, adWorker := range cfg.AdWorkers {
 		grpcWorkerClient, err := newWorkerClientGRPC(workerClientGRPCConfig{
-			Address:   		 adWorker,
-			ChunkSize: 		 s.chunkSize,
+			Address:         adWorker,
+			ChunkSize:       s.chunkSize,
 			RootCertificate: s.certificate,
-			Compress:		 s.compress,
+			Compress:        s.compress,
 		})
 		if err != nil {
 			//TODO: replace by return?
 			panic(err)
 		}
-		s.logger.Info().Msg(fmt.Sprintf("Server successfully connected to %s", adWorker))
+		s.logger.Info().Msg(fmt.Sprintf("Server successfully added %s as a worker", adWorker))
 		s.workers = append(s.workers, grpcWorkerClient)
 	}
 
@@ -156,10 +155,10 @@ func (s *ServerGRPC) Listen() (err error) {
 func (s *ServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextService_UploadPdfAndGetTextServer) (err error) {
 	fn := "pdftotext.pdf"
 
-    file, err := messaging.ReceiveFile(stream, fn)
-    if err != nil {
-        return
-    }
+	file, err := messaging.ReceiveFile(stream, fn)
+	if err != nil {
+		return
+	}
 
 	s.logger.Info().Msg("upload received: processing the text")
 	txtfn := "pdftotext.txt"
@@ -221,11 +220,11 @@ func (s *ServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextService_Uploa
 func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer) (err error) {
 	uuid := uuid.New().String()
 	fn := s.incomingFolder + "pdftotext" + uuid + ".pdf"
-    file, err := messaging.ReceiveFile(stream, fn)
-    if err != nil {
-        return
-    }
-    defer file.Close()
+	file, err := messaging.ReceiveFile(stream, fn)
+	if err != nil {
+		return
+	}
+	defer file.Close()
 
 	s.logger.Info().Msg("upload received")
 	s.logger.Info().Msg("sending to worker ...")
@@ -250,7 +249,7 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 
 	stream.SendAndClose(&messaging.IdAndStatus{
 		Uuid:    uuid,
-		Message: "File is received and will be processed soon" ,
+		Message: "File is received and will be processed soon",
 		Code:    messaging.StatusCode_Ok,
 	})
 	if err != nil {
@@ -273,13 +272,13 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 // GetText implements GetText method of PdftotextService. It returns a text file in the form of stream,
 // giving the id.
 func (s *ServerGRPC) GetText(id *messaging.Id, stream messaging.PdftotextService_GetTextServer) (err error) {
-    txtfn := s.outgoingFolder + "pdftotext" + id.Uuid + ".txt"
+	txtfn := s.outgoingFolder + "pdftotext" + id.Uuid + ".txt"
 	//TODO: maybe send a error code? to test
 	//TODO: search for a file (look whether it is already treated)
-    err = messaging.SendFile(stream, s.chunkSize, txtfn, true)
-    if err != nil {
-        return
-    }
+	err = messaging.SendFile(stream, s.chunkSize, txtfn, true)
+	if err != nil {
+		return
+	}
 	s.logger.Info().Msg("text sent")
 
 	return

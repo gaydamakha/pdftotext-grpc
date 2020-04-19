@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/urfave/cli/v2"
 	"gitlab.com/gaydamakha/ter-grpc/server"
 )
@@ -10,6 +12,11 @@ var Serve = cli.Command{
 	Usage:  "initiates a gRPC server",
 	Action: serveAction,
 	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:     "workers",
+			Usage:    "IP addresses of workers",
+			Required: true,
+		},
 		&cli.IntFlag{
 			Name:  "port",
 			Usage: "port to bind to",
@@ -28,11 +35,6 @@ var Serve = cli.Command{
 			Name:  "certificate",
 			Usage: "path to TLS certificate",
 		},
-		&cli.StringSliceFlag{
-			Name:  "workers-addresses",
-			Usage: "adresses of pdftotext workers",
-			Value: cli.NewStringSlice(),
-		},
 		&cli.BoolFlag{
 			Name:  "compress",
 			Usage: "whether or not to enable payload compression",
@@ -47,7 +49,7 @@ func serveAction(c *cli.Context) (err error) {
 		certificate = c.String("certificate")
 		compress    = c.Bool("compress")
 		chunkSize   = c.Int("chunk-size")
-		adWorkers	= c.StringSlice("workers-addresses")
+		adWorkers   = strings.Fields(c.String("workers"))
 		srv         *server.ServerGRPC
 	)
 
@@ -57,7 +59,7 @@ func serveAction(c *cli.Context) (err error) {
 		Key:         key,
 		ChunkSize:   chunkSize,
 		AdWorkers:   adWorkers,
-		Compress:	 compress,
+		Compress:    compress,
 	})
 	must(err)
 	srv = &grpcServer
