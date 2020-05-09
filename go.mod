@@ -9,5 +9,6 @@ require (
 	github.com/rs/zerolog v1.17.2
 	github.com/urfave/cli/v2 v2.1.1
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.27.0
 )

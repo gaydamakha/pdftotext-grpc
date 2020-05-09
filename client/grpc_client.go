@@ -1,18 +1,18 @@
 package client
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"time"
-	"context"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gitlab.com/gaydamakha/ter-grpc/messaging"
-	// "golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -27,7 +27,9 @@ type ClientGRPC struct {
 	conn      *grpc.ClientConn
 	client    messaging.PdftotextServiceClient
 	chunkSize int
-	txtDir	  string
+	txtDir    string
+	nbCalls   int64
+	nbcmtx    *sync.RWMutex
 }
 
 type ClientGRPCConfig struct {
@@ -35,10 +37,8 @@ type ClientGRPCConfig struct {
 	ChunkSize       int
 	RootCertificate string
 	Compress        bool
-	TxtDir			string
+	TxtDir          string
 }
-
-
 
 func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 	var (
@@ -86,7 +86,7 @@ func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 		err = os.MkdirAll(c.txtDir, 0777)
 		if err != nil {
 			err = errors.Wrapf(err,
-			"failed to created directory to store result files")
+				"failed to created directory to store result files")
 		}
 	}
 
@@ -105,14 +105,20 @@ func NewClientGRPC(cfg ClientGRPCConfig) (c ClientGRPC, err error) {
 
 	c.client = messaging.NewPdftotextServiceClient(c.conn)
 
+	c.nbCalls = 0
+	c.nbcmtx = &sync.RWMutex{}
+
 	return
 }
 
-func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (stats Stats, err error) {
+func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string) (err error) {
 	var (
-		status  *messaging.TextAndStatus
+		status *messaging.TextAndStatus
 	)
-
+	c.nbcmtx.Lock()
+	c.nbCalls++
+	i := strconv.Itoa(int(c.nbCalls))
+	c.nbcmtx.Unlock()
 	// Open a stream-based connection with the
 	// gRPC server
 	stream, err := c.client.UploadPdfAndGetText(ctx)
@@ -124,17 +130,10 @@ func (c *ClientGRPC) PdfToTextFile(ctx context.Context, f string, i string) (sta
 	}
 	defer stream.CloseSend()
 
-	// Start timing the execution
-	stats.StartedAt = time.Now()
-
-    err = messaging.SendFile(stream, c.chunkSize, f, false)
-    if err != nil {
-        return
-    }
-
-	// keep track of the end time so that we can take the elapsed
-	// time later
-	stats.FinishedAt = time.Now()
+	err = messaging.SendFile(stream, c.chunkSize, f, false)
+	if err != nil {
+		return
+	}
 
 	status, err = stream.CloseAndRecv()
 	if err != nil {
@@ -169,10 +168,15 @@ func (c *ClientGRPC) Close() {
 	}
 }
 
-func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string, i string) (stats Stats, err error) {
+func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string) (err error) {
 	var (
-		status  *messaging.IdAndStatus
+		status *messaging.IdAndStatus
 	)
+	c.nbcmtx.Lock()
+	c.nbCalls++
+	i := strconv.Itoa(int(c.nbCalls))
+	c.nbcmtx.Unlock()
+
 	// Open a stream-based connection with the
 	// gRPC server
 	stream, err := c.client.UploadPdf(ctx)
@@ -184,13 +188,10 @@ func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string, i string) (s
 	}
 	defer stream.CloseSend()
 
-	// Start timing the execution
-	stats.StartedAt = time.Now()
-
 	err = messaging.SendFile(stream, c.chunkSize, f, false)
-    if err != nil {
-        return
-    }
+	if err != nil {
+		return
+	}
 
 	status, err = stream.CloseAndRecv()
 	if err != nil {
@@ -219,12 +220,10 @@ func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string, i string) (s
 	fn := filepath.Base(f)
 	txtfn := c.txtDir + strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
 	txtfile, err := messaging.ReceiveFile(downloadStream, txtfn)
-    defer txtfile.Close()
-    if err != nil {
-        return
-    }
-	stats.FinishedAt = time.Now()
+	defer txtfile.Close()
+	if err != nil {
+		return
+	}
 
 	return
 }
-

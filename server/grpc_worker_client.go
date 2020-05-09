@@ -1,17 +1,18 @@
 package server
 
 import (
-	"os"
+	"context"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"context"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gitlab.com/gaydamakha/ter-grpc/messaging"
-	// "golang.org/x/net/context"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -75,7 +76,8 @@ func newWorkerClientGRPC(cfg workerClientGRPCConfig) (c workerClientGRPC, err er
 
 	c.logger = zerolog.New(os.Stdout).
 		With().
-		Str("from", "worker_client").
+		Timestamp().
+		Str("from", fmt.Sprintf("worker_client %s", cfg.Address)).
 		Logger()
 
 	c.conn, err = grpc.Dial(cfg.Address, grpcOpts...)
@@ -91,51 +93,70 @@ func newWorkerClientGRPC(cfg workerClientGRPCConfig) (c workerClientGRPC, err er
 	return
 }
 
-func (c *workerClientGRPC) PdfToTextFile(ctx context.Context, f string, dir string) (txtfn string, err error) {
+func (c *workerClientGRPC) PdfToTextFile(ctx context.Context, f string, dir string, reschan chan workerRequest) {
 	var (
-		status  *messaging.TextAndStatus
+		status *messaging.TextAndStatus
+		result workerRequest
 	)
+
+	result = workerRequest{}
 
 	// Open a stream-based connection with the
 	// gRPC server
+	c.logger.Info().Msg("creating upload stream to worker...")
+
 	stream, err := c.client.UploadPdfAndGetText(ctx)
 	if err != nil {
-		err = errors.Wrapf(err,
+		result.err = errors.Wrapf(err,
 			"failed to create upload stream for file %s",
 			f)
+		reschan <- result
 		return
 	}
 	defer stream.CloseSend()
 
-    err = messaging.SendFile(stream, c.chunkSize, f, false)
-    if err != nil {
-        return
-	}
-	
-	status, err = stream.CloseAndRecv()
+	c.logger.Info().Msg("sending a file to worker...")
+
+	err = messaging.SendFile(stream, c.chunkSize, f, false)
 	if err != nil {
-		err = errors.Wrapf(err,
-			"failed to receive upstream status response")
+		result.err = err
+		reschan <- result
 		return
 	}
 
+	c.logger.Info().Msg("file sent to worker: receiving the result")
+
+	status, err = stream.CloseAndRecv()
+	if err != nil {
+		result.err = errors.Wrapf(err,
+			"failed to receive upstream status response")
+		reschan <- result
+		return
+	}
+
+	c.logger.Info().Msg("received!")
+
 	if status.Code != messaging.StatusCode_Ok {
-		err = errors.Errorf(
+		result.err = errors.Errorf(
 			"upload failed - msg: %s",
 			status.Message)
+		reschan <- result
 		return
 	}
 
 	fn := filepath.Base(f)
-	txtfn = dir + strings.TrimSuffix(fn, path.Ext(fn)) + ".txt"
+	txtfn := dir + strings.TrimSuffix(fn, path.Ext(fn)) + ".txt"
 	err = ioutil.WriteFile(txtfn, status.Text, 0644)
 	if err != nil {
-		err = errors.Wrapf(err,
+		result.err = errors.Wrapf(err,
 			"failed to create result file %s",
 			txtfn)
+		reschan <- result
 		return
 	}
 
+	result.txtfn = txtfn
+	reschan <- result
 	return
 }
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -19,6 +20,11 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
+type workerRequest struct {
+	txtfn string
+	err   error
+}
+
 type ServerGRPC struct {
 	logger         zerolog.Logger
 	server         *grpc.Server
@@ -29,9 +35,12 @@ type ServerGRPC struct {
 	compress       bool
 	workers        []workerClientGRPC
 	workerCount    int
+	workermtx      *sync.RWMutex
 	nbWorkers      int
 	incomingFolder string
 	outgoingFolder string
+	requests       map[string]chan workerRequest
+	reqmtx         *sync.RWMutex
 }
 
 type ServerGRPCConfig struct {
@@ -46,6 +55,7 @@ type ServerGRPCConfig struct {
 func NewServerGRPC(cfg ServerGRPCConfig) (s ServerGRPC, err error) {
 	s.logger = zerolog.New(os.Stdout).
 		With().
+		Timestamp().
 		Str("from", "server").
 		Logger()
 
@@ -73,6 +83,9 @@ func NewServerGRPC(cfg ServerGRPCConfig) (s ServerGRPC, err error) {
 	s.workerCount = 0
 	s.incomingFolder = "pdftotext/incoming/"
 	s.outgoingFolder = "pdftotext/outgoing/"
+	s.workermtx = &sync.RWMutex{}
+	s.reqmtx = &sync.RWMutex{}
+	s.requests = make(map[string]chan workerRequest)
 
 	if len(cfg.AdWorkers) == 0 {
 		err = errors.Errorf("Workers addresses must be specified")
@@ -226,26 +239,26 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 	}
 	defer file.Close()
 
-	s.logger.Info().Msg("upload received")
-	s.logger.Info().Msg("sending to worker ...")
-	//TODO: choose worker and send him the file in the go routine
+	s.logger.Info().Msg(fmt.Sprintf("%s: upload from client received", uuid))
 
-	_, err = s.workers[s.workerCount].PdfToTextFile(context.Background(), fn, s.outgoingFolder)
+	//fetch current worker number and update shared worker count
+	s.workermtx.RLock()
+	currentwrk := s.workerCount
+	s.workermtx.RUnlock()
+
+	s.workermtx.Lock()
 	// Increment workerCount even if error occurs
 	s.workerCount++
-	// Come back to the first worker if iw was the last
+	// Come back to the first worker if it was the last
 	s.workerCount %= s.nbWorkers
-	if err != nil {
-		return
-	}
+	s.workermtx.Unlock()
 
-	s.logger.Info().Msg("file sent to worker")
-	// _, err = exec.Command("pdftotext", fn, txtfn).Output()
-	// if err != nil {
-	// 	err = errors.Wrapf(err,
-	// 		"pdftotext didn't worked")
-	// 	return
-	// }
+	reschan := make(chan workerRequest)
+	go s.workers[currentwrk].PdfToTextFile(context.Background(), fn, s.outgoingFolder, reschan)
+
+	s.reqmtx.Lock()
+	s.requests[uuid] = reschan
+	s.reqmtx.Unlock()
 
 	stream.SendAndClose(&messaging.IdAndStatus{
 		Uuid:    uuid,
@@ -255,6 +268,7 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 	if err != nil {
 		err = errors.Wrapf(err,
 			"failed to send status code")
+		s.logger.Error().Err(err)
 		return
 	}
 
@@ -263,6 +277,7 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 	if os.Remove(fn) != nil {
 		err = errors.Wrapf(err,
 			"failed to remove tmp pdf file")
+		s.logger.Error().Err(err)
 		return
 	}
 
@@ -272,16 +287,35 @@ func (s *ServerGRPC) UploadPdf(stream messaging.PdftotextService_UploadPdfServer
 // GetText implements GetText method of PdftotextService. It returns a text file in the form of stream,
 // giving the id.
 func (s *ServerGRPC) GetText(id *messaging.Id, stream messaging.PdftotextService_GetTextServer) (err error) {
-	txtfn := s.outgoingFolder + "pdftotext" + id.Uuid + ".txt"
-	//TODO: maybe send a error code? to test
-	//TODO: search for a file (look whether it is already treated)
-	err = messaging.SendFile(stream, s.chunkSize, txtfn, true)
+	s.reqmtx.RLock()
+	//TODO: check if key exists
+	reqchan := s.requests[id.Uuid]
+	s.reqmtx.RUnlock()
+
+	//Wait for the client to finish the file processing and return the result filename
+	result := <-reqchan
+	err = result.err
 	if err != nil {
+		//TODO: maybe send a error code? to test
+		s.logger.Error().Err(err)
 		return
 	}
-	s.logger.Info().Msg("text sent")
+
+	s.logger.Info().Msg(fmt.Sprintf("%s: sending a text..", id.Uuid))
+	err = messaging.SendFile(stream, s.chunkSize, result.txtfn, true)
+	if err != nil {
+		s.logger.Error().Err(err)
+		return
+	}
+	s.logger.Info().Msg(fmt.Sprintf("%s: text sent", id.Uuid))
+
+	// If all is ok, delete this request from the map
+	s.reqmtx.Lock()
+	delete(s.requests, id.Uuid)
+	s.reqmtx.Unlock()
 
 	return
+
 }
 
 func (s *ServerGRPC) Close() {

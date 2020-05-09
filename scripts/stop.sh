@@ -1,20 +1,42 @@
 #!/bin/bash
 
-WORKERS_FILE="workers.txt"
-SERVER_FILE="server.txt"
+DIRNAME="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+SERVER_FILE="$DIRNAME/../server.txt"
+WORKERS_FILE="$DIRNAME/../workers.txt"
 
-mapfile -t WORKERS < $WORKERS_FILE
+if [[ ! -f "$SERVER_FILE" ]]; then
+    echo "File $SERVER_FILE does not exists"
+    exit 1
+fi
 
 #Stop the server first
-ssh $(cat $SERVER_FILE) ./server_remote_stop.sh
+echo "Stopping the server..."
+CODE=1
+until [[ CODE -eq 0 ]]; do
+    ssh $(cat $SERVER_FILE) ./server_remote_stop.sh
+    CODE=$?
+    sleep 1
+done
+
+rm $SERVER_FILE
+
+if [[ ! -f "$WORKERS_FILE" ]]; then
+    echo "File $WORKERS_FILE does not exists"
+    exit 1
+fi
+mapfile -t WORKERS <$WORKERS_FILE
 
 #Stop the workers
-while read WORKER_INFO
-do
+while IFS= read -r WORKER_INFO <&3 || [[ -n "$WORKER_INFO" ]]; do
     WORKER_AD=$(echo $WORKER_INFO | head -n1 | cut -d " " -f1)
     WORKER_ID=$(echo $WORKER_INFO | head -n1 | cut -d " " -f2)
-    ssh ${WORKER_AD} ./worker_remote_stop.sh ${WORKER_ID}
-done < $WORKERS_FILE
+    echo "Stopping $WORKER_AD..."
+    CODE=1
+    until [[ CODE -eq 0 ]]; do
+        ssh ${WORKER_AD} ./worker_remote_stop.sh ${WORKER_ID}
+        CODE=$?
+        sleep 1
+    done
+done 3<$WORKERS_FILE
 
 rm $WORKERS_FILE
-rm $SERVER_FILE

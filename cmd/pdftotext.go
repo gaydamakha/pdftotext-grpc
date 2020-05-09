@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strconv"
-	"context"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/urfave/cli/v2"
 	"gitlab.com/gaydamakha/ter-grpc/client"
@@ -35,7 +37,7 @@ var PdfToText = cli.Command{
 			Usage: "path to the metrics result file",
 			Value: "",
 		},
-        &cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "txt-dir",
 			Usage: "directiry to store returned text files",
 			Value: "./",
@@ -62,18 +64,21 @@ var PdfToText = cli.Command{
 
 func pdftotextAction(c *cli.Context) (err error) {
 	var (
-		chunkSize          = c.Int("chunk-size")
-		address            = c.String("address")
-		file               = c.String("file")
-		rootCertificate    = c.String("root-certificate")
-		compress           = c.Bool("compress")
-		iters              = c.Int("iters")
-        txtDir             = c.String("txt-dir")
-		resultfn           = c.String("result-fn")
-		bi                 = c.Bool("bidirectional")
-		statBegin, statEnd client.Stats
-		clt                *client.ClientGRPC
+		chunkSize       = c.Int("chunk-size")
+		address         = c.String("address")
+		file            = c.String("file")
+		rootCertificate = c.String("root-certificate")
+		compress        = c.Bool("compress")
+		iters           = c.Int("iters")
+		txtDir          = c.String("txt-dir")
+		resultfn        = c.String("result-fn")
+		bi              = c.Bool("bidirectional")
+		stats           client.Stats
+		clt             *client.ClientGRPC
+		errg            *errgroup.Group
 	)
+
+	errg, _ = errgroup.WithContext(context.Background())
 
 	if address == "" {
 		must(errors.New("address"))
@@ -88,43 +93,38 @@ func pdftotextAction(c *cli.Context) (err error) {
 		RootCertificate: rootCertificate,
 		Compress:        compress,
 		ChunkSize:       chunkSize,
-		TxtDir:			 txtDir,
+		TxtDir:          txtDir,
 	})
 	must(err)
 	clt = &grpcClient
 	defer clt.Close()
 
+	// Here the "iters" goroutines are launched to simulate a simultaneous connection of multiple clients
+	stats.StartedAt = time.Now()
 	if bi {
-		statBegin, err = clt.PdfToTextFileBi(context.Background(), file, "1")
-		must(err)
-		for i := 2; i < iters; i++ {
-			_, err := clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(i))
-			must(err)
-		}
-		if iters == 1 {
-			statEnd = statBegin
-		} else {
-			statEnd, err = clt.PdfToTextFileBi(context.Background(), file, strconv.Itoa(iters))
-			must(err)
+		// The file will be processed by some of the worker
+		for i := 1; i <= iters; i++ {
+			errg.Go(func() error {
+				return clt.PdfToTextFileBi(context.Background(), file)
+			})
 		}
 	} else {
-		statBegin, err = clt.PdfToTextFile(context.Background(), file, "1")
-		must(err)
-		for i := 2; i < iters; i++ {
-			_, err := clt.PdfToTextFile(context.Background(), file, strconv.Itoa(i))
-			must(err)
-		}
-		if iters == 1 {
-			statEnd = statBegin
-		} else {
-			statEnd, err = clt.PdfToTextFile(context.Background(), file, strconv.Itoa(iters))
-			must(err)
+		for i := 1; i <= iters; i++ {
+			errg.Go(func() error {
+				return clt.PdfToTextFile(context.Background(), file)
+			})
 		}
 	}
 
-	result := statEnd.FinishedAt.Sub(statBegin.StartedAt).String()
+	//Wait for others goroutines to finish or for a error (if any occurs)
+	err = errg.Wait()
+	if err != nil {
+		must(err)
+	}
+	stats.FinishedAt = time.Now()
+	result := stats.FinishedAt.Sub(stats.StartedAt).Seconds()
 	if resultfn != "" {
-		err = ioutil.WriteFile(resultfn, []byte(result), 0644)
+		err = ioutil.WriteFile(resultfn, []byte(fmt.Sprintf("%f", result)), 0644)
 	} else {
 		fmt.Println(result)
 	}

@@ -1,12 +1,14 @@
 package worker
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
-	
+
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"gitlab.com/gaydamakha/ter-grpc/messaging"
@@ -22,36 +24,25 @@ type WorkerServerGRPC struct {
 	port        int
 	certificate string
 	key         string
-	chunkSize   int
 }
 
 type WorkerServerGRPCConfig struct {
 	Certificate string
 	Key         string
 	Port        int
-	ChunkSize   int
 }
 
 func NewWorkerServerGRPC(cfg WorkerServerGRPCConfig) (s WorkerServerGRPC, err error) {
 	s.logger = zerolog.New(os.Stdout).
 		With().
+		Timestamp().
 		Str("from", "worker_server").
 		Logger()
 
 	if cfg.Port == 0 {
 		err = errors.Errorf("Port must be specified")
+		s.logger.Error().Err(err)
 		return
-	}
-
-	switch {
-	case cfg.ChunkSize == 0:
-		err = errors.Errorf("ChunkSize must be specified")
-		return
-	case cfg.ChunkSize > (1 << 22):
-		err = errors.Errorf("ChunkSize must be < than 4MB")
-		return
-	default:
-		s.chunkSize = cfg.ChunkSize
 	}
 
 	s.port = cfg.Port
@@ -75,6 +66,7 @@ func (s *WorkerServerGRPC) Listen() (err error) {
 		err = errors.Wrapf(err,
 			"failed to listen on port %d",
 			s.port)
+		s.logger.Error().Err(err)
 		return
 	}
 
@@ -85,6 +77,7 @@ func (s *WorkerServerGRPC) Listen() (err error) {
 			err = errors.Wrapf(err,
 				"failed to create tls grpc server using cert %s and key %s",
 				s.certificate, s.key)
+			s.logger.Error().Err(err)
 			return
 		}
 
@@ -99,6 +92,7 @@ func (s *WorkerServerGRPC) Listen() (err error) {
 	err = s.server.Serve(listener)
 	if err != nil {
 		err = errors.Wrapf(err, "error listening for grpc connections")
+		s.logger.Error().Err(err)
 		return
 	}
 
@@ -109,20 +103,22 @@ func (s *WorkerServerGRPC) Listen() (err error) {
 // interface which is responsible for receiving a stream of
 // chunks that form a complete file.
 func (s *WorkerServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextWorker_UploadPdfAndGetTextServer) (err error) {
-	fn := "pdftotext.pdf"
-	s.logger.Info().Msg("receiving the upload...")
+	uuid := uuid.New().String()
+	fn := "pdftotext" + uuid + ".pdf"
+	s.logger.Info().Msg(fmt.Sprintf("%s: receiving the upload...", uuid))
 
-    file, err := messaging.ReceiveFile(stream, fn)
-    if err != nil {
-        return
-    }
+	file, err := messaging.ReceiveFile(stream, fn)
+	if err != nil {
+		return
+	}
 
-	s.logger.Info().Msg("upload received: processing the text")
-	txtfn := "pdftotext.txt"
+	s.logger.Info().Msg(fmt.Sprintf("%s: upload received: processing the text", uuid))
+	txtfn := "pdftotext" + uuid + ".txt"
 	_, err = exec.Command("pdftotext", fn, txtfn).Output()
 	if err != nil {
 		err = errors.Wrapf(err,
 			"pdftotext didn't worked")
+		s.logger.Error().Err(err)
 		return
 	}
 
@@ -131,6 +127,7 @@ func (s *WorkerServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextWorker_
 	if err != nil {
 		err = errors.Wrapf(err,
 			"can't open result file")
+		s.logger.Error().Err(err)
 		return
 	}
 
@@ -142,6 +139,8 @@ func (s *WorkerServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextWorker_
 		return
 	}
 
+	s.logger.Info().Msg(fmt.Sprintf("%s: file processed: sending the file", uuid))
+
 	// once the transmission finished, send the
 	// confirmation and the text if nothing went wrong
 	err = stream.SendAndClose(&messaging.TextAndStatus{
@@ -152,20 +151,25 @@ func (s *WorkerServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextWorker_
 	if err != nil {
 		err = errors.Wrapf(err,
 			"failed to send status code")
+		s.logger.Error().Err(err)
 		return
 	}
+
+	s.logger.Info().Msg(fmt.Sprintf("%s: file sent", uuid))
 
 	//Be clean.
 	file.Close()
 	if os.Remove(fn) != nil {
 		err = errors.Wrapf(err,
 			"failed to remove tmp pdf file")
+		s.logger.Error().Err(err)
 		return
 	}
 	txtfile.Close()
 	if os.Remove(txtfn) != nil {
 		err = errors.Wrapf(err,
 			"failed to remove tmp txt file")
+		s.logger.Error().Err(err)
 		return
 	}
 

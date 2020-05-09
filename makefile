@@ -30,12 +30,11 @@ clean:
 	rm -f go.sum
 	rm -f ./messaging/messaging.pb.go
 	rm -f $$GOPATH/bin/ter-grpc
-	rm -fr ./metrics
+	rm -fr ./results/
+	rm -fr ./txt/
+	rm -fr ./certs/
 
-deploy:
-	./scripts/deploy.sh -f ./machines.txt -u gaydamakha -p 5000 -n 2
-
-stop:
-	./scripts/stop.sh
+metrics:
+	./scripts/collect_metrics.sh
 
 .PHONY: certs proto build fmt clean metrics

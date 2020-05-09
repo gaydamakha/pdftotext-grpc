@@ -1,14 +1,17 @@
 #!/bin/bash
 
-usage() { echo "Usage: -p <port> -a <addresses of workers>"; exit 1; }
+usage() { echo "Usage: -p <port> -a <addresses of workers> -c <chunk size>"; exit 1; }
 
-while getopts ":p:a:" o; do
+while getopts ":p:a:c:" o; do
     case "${o}" in
         p)
             PORT=${OPTARG}
             ;;
         a)
             WORKERS=${OPTARG}
+            ;;
+        c)
+            CHUNK_SIZE=${OPTARG}
             ;;
         *)
             usage
@@ -27,6 +30,11 @@ if [[ -z "${WORKERS}" ]]; then
     usage
 fi
 
+if [[ -z "${CHUNK_SIZE}" ]]; then
+    # Chunk size must be specified
+    usage
+fi
+
 SERVER_DIR=$HOME/server
 
 mkdir -p $SERVER_DIR
@@ -36,6 +44,7 @@ nohup $HOME/ter-grpc serve \
     --certificate $HOME/localhost.cert \
     --key $HOME/localhost.key \
     --compress \
+    --chunk-size $CHUNK_SIZE \
     --workers "${WORKERS}" > $SERVER_DIR/logs.txt 2> $SERVER_DIR/error_logs.txt &
 
 echo $! > $SERVER_DIR/pid.txt
