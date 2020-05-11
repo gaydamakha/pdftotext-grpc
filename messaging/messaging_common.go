@@ -8,18 +8,17 @@ import (
 )
 
 type ChunkReceiver interface {
-    Recv() (*Chunk, error)
+	Recv() (*Chunk, error)
 }
 
 type ChunkSender interface {
-    Send(*Chunk) error
+	Send(*Chunk) error
 }
 
-//This function receives a file by reading the stream.
+//ReceiveFile function receives a file by reading the stream.
 //As a pointer to the file is returned, it's up to the caller to remove/close this file.
 func ReceiveFile(stream ChunkReceiver, filename string) (file *os.File, err error) {
-    //TODO: create a directory if not exist
-    file, err = os.Create(filename)
+	file, err = os.Create(filename)
 	if err != nil {
 		err = errors.Wrapf(err,
 			"failed to create file %s",
@@ -46,20 +45,20 @@ func ReceiveFile(stream ChunkReceiver, filename string) (file *os.File, err erro
 	}
 }
 
-//This function sends a file by stream. If file needs to be removed,
+//SendFile function sends a file by stream. If file needs to be removed,
 //the toremove parameter should be set to true
 func SendFile(
-    stream ChunkSender,
-    chunkSize int,
-    filename string,
-    toremove bool) (err error) {
-    var (
-        writing = true
-        buf     []byte
-        n       int
-        file    *os.File
-    )
-    // Get a file handle for the file we want to process
+	stream ChunkSender,
+	chunkSize int,
+	filename string,
+	toremove bool) (err error) {
+	var (
+		writing = true
+		buf     []byte
+		n       int
+		file    *os.File
+	)
+	// Get a file handle for the file we want to process
 	file, err = os.Open(filename)
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -68,8 +67,8 @@ func SendFile(
 		return
 	}
 
-    // Allocate a buffer with `chunkSize` as the capacity
-    // and length (making a 0 array of the size of `chunkSize`)
+	// Allocate a buffer with `chunkSize` as the capacity
+	// and length (making a 0 array of the size of `chunkSize`)
 	buf = make([]byte, chunkSize)
 	for writing {
 		// put as many bytes as `chunkSize` into the
@@ -103,15 +102,14 @@ func SendFile(
 		}
 	}
 
-    file.Close()
-    if toremove {
-	    if os.Remove(filename) != nil {
-            err = errors.Wrapf(err,
-            "failed to remove tmp file")
-	        return
-	    }
-    }
+	file.Close()
+	if toremove {
+		if os.Remove(filename) != nil {
+			err = errors.Wrapf(err,
+				"failed to remove tmp file")
+			return
+		}
+	}
 
-    return
+	return
 }
-

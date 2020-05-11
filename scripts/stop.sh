@@ -10,10 +10,11 @@ if [[ ! -f "$SERVER_FILE" ]]; then
 fi
 
 #Stop the server first
-echo "Stopping the server..."
 CODE=1
 until [[ CODE -eq 0 ]]; do
-    ssh $(cat $SERVER_FILE) ./server_remote_stop.sh
+    SERVER_AD=$(cat $SERVER_FILE)
+    echo "Stopping the server $SERVER_AD..."
+    ssh $SERVER_AD ./server_remote_stop.sh
     CODE=$?
     sleep 1
 done
@@ -30,7 +31,7 @@ mapfile -t WORKERS <$WORKERS_FILE
 while IFS= read -r WORKER_INFO <&3 || [[ -n "$WORKER_INFO" ]]; do
     WORKER_AD=$(echo $WORKER_INFO | head -n1 | cut -d " " -f1)
     WORKER_ID=$(echo $WORKER_INFO | head -n1 | cut -d " " -f2)
-    echo "Stopping $WORKER_AD..."
+    echo "Stopping the worker $WORKER_AD..."
     CODE=1
     until [[ CODE -eq 0 ]]; do
         ssh ${WORKER_AD} ./worker_remote_stop.sh ${WORKER_ID}

@@ -219,6 +219,7 @@ func (c *ClientGRPC) PdfToTextFileBi(ctx context.Context, f string) (err error) 
 
 	fn := filepath.Base(f)
 	txtfn := c.txtDir + strings.TrimSuffix(fn, path.Ext(fn)) + i + ".txt"
+	//TODO: do something other if text dir is not given
 	txtfile, err := messaging.ReceiveFile(downloadStream, txtfn)
 	defer txtfile.Close()
 	if err != nil {
