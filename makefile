@@ -1,4 +1,4 @@
-all: proto build
+all: build
 
 certs:
 	mkdir -p ./certs
@@ -11,13 +11,9 @@ certs:
 		-out ./certs/localhost.cert \
 		-days 3650 \
 		-subj /CN=localhost
-
-proto:
-	protoc \
-		./messaging/messaging.proto \
-		--go_out=plugins=grpc:.
-
 build:
+	go install github.com/golang/protobuf/protoc-gen-go
+	protoc ./messaging/messaging.proto --go_out=plugins=grpc:. --go_opt=paths=source_relative 
 	go install .
 
 fmt:
@@ -34,7 +30,7 @@ clean:
 	rm -fr ./txt/
 	rm -fr ./certs/
 
-metrics:
+metrics: build certs
 	./scripts/collect_metrics.sh
 
 .PHONY: certs proto build fmt clean metrics
