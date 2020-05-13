@@ -1,6 +1,5 @@
 syntax = "proto3";
 package messaging;
-option go_package = "gitlab.com/gaydamakha/ter-grpc/messaging";
 
 service PdftotextService {
     //Simple service, provides a resulting text in return message
