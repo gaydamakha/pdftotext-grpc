@@ -10,7 +10,7 @@ import (
 func main() {
 	app := &cli.App{
 		Name:  "pdftotext-rpc",
-		Usage: "I dunno for a while",
+		Usage: "",
 		Commands: []*cli.Command{
 			&cmd.WorkerServe,
 			&cmd.Serve,
