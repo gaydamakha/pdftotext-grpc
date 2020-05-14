@@ -1,6 +1,12 @@
 #!/bin/bash
 # In this script we suppose that "make" and "make certs" are already done
 
+if [ -z $GOPATH ]; then
+	echo "* Error: environment variable GOPATH is not set." 2>&1
+	exit 1
+fi
+
+
 DIRNAME="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 SERVER_FILE="$DIRNAME/../server.txt"
 MACHINES_FILE="$DIRNAME/../machines.txt"
