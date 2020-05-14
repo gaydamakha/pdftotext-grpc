@@ -31,6 +31,6 @@ clean:
 	rm -fr ./certs/
 
 metrics: build certs
-	./scripts/collect_metrics.sh
+	./scripts/icps_collect_metrics.sh
 
 .PHONY: certs proto build fmt clean metrics

@@ -15,7 +15,7 @@ CODE=1
 until [[ CODE -eq 0 ]]; do
     SERVER_AD=$(cat $SERVER_FILE | cut -d ' ' -f1)
     echo "Stopping the server $SERVER_AD..."
-    ssh $SERVER_AD ./server_remote_stop.sh
+    ssh $SERVER_AD $DIRNAME/server_remote_stop.sh
     CODE=$?
     sleep 1
 done
@@ -35,7 +35,7 @@ while IFS= read -r WORKER_INFO <&3 || [[ -n "$WORKER_INFO" ]]; do
     echo "Stopping the worker $WORKER_AD..."
     CODE=1
     until [[ CODE -eq 0 ]]; do
-        ssh ${WORKER_AD} ./worker_remote_stop.sh ${WORKER_ID}
+        ssh ${WORKER_AD} $DIRNAME/worker_remote_stop.sh ${WORKER_ID}
         CODE=$?
         sleep 1
     done

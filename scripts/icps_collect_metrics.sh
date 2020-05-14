@@ -16,7 +16,7 @@ ARR_NB_WORKERS=(1 2 3 4)
 NB_ITERS=3
 #Try to repeat a measure 3 times before abandon
 MAX_TRIES=3
-BIN=$GOPATH/bin/ter-grpc
+BIN=$HOME/go/bin/ter-grpc
 
 if [[ ! -f "$MACHINES_FILE" ]]; then
     echo "File $MACHINES_FILE does not exists"
@@ -46,7 +46,7 @@ for NB_WORKERS in "${ARR_NB_WORKERS[@]}"; do
         CLIENT_CHUNK_SIZE=16
         while [[ $CLIENT_CHUNK_SIZE -le $MAX_CHUNK_SIZE ]]; do
             for FILENAME in $FIXTURES_DIR/*.pdf; do
-                echo "Launching client with chunk_size:$CLIENT_CHUNK_SIZE file:$FILENAME"
+                echo "Launching client with chunk_size:$CLIENT_CHUNK_SIZE"
                 #Make a measure 3 times to calculate an average value
                 ITER=0
                 TIME=0
@@ -59,8 +59,8 @@ for NB_WORKERS in "${ARR_NB_WORKERS[@]}"; do
                     ITER_TIME=0
                     #repeat until successfull or number of tries is achieved
                     until [[ $CODE -eq 0 || $TRY -gt $MAX_TRIES ]]; do
-                        ITER_TIME=$($GOPATH/bin/ter-grpc pdftotext --bidirectional=true --compress=true --root-certificate $SRC_DIR/certs/localhost.cert \
-                            --file $FILENAME --address $SERVER_IP:$SERVER_PORT --iters $NB_FILES --txt-dir $TXT_DIR)
+                        ITER_TIME=$($BIN pdftotext --bidirectional=true --compress=true --root-certificate $SRC_DIR/certs/localhost.cert \
+                            --file $FILENAME --address $SERVER_IP:$SERVER_PORT --iters $NB_FILES --txt-dir $TXT_DIR/)
                         CODE=$?
                         ((TRY++))
                     done

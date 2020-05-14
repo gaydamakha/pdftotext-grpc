@@ -47,7 +47,7 @@ SERVER_DIR=$HOME/server
 
 mkdir -p $SERVER_DIR
 
-nohup $BIN \
+nohup $BIN serve\
     --port $PORT \
     --certificate $SRC_DIR/certs/localhost.cert \
     --key $SRC_DIR/certs/localhost.key \

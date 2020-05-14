@@ -1,5 +1,5 @@
-icps-gc-1.u-strasbg.fr
 icps-gc-2.u-strasbg.fr
 icps-gc-4.u-strasbg.fr
+icps-gc-4.u-strasbg.fr
 icps-gc-5.u-strasbg.fr
-icps-gc-6.u-strasbg.fr
+icps-gc-5.u-strasbg.fr

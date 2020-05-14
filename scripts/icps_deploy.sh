@@ -85,6 +85,8 @@ mapfile -t MACHINES <$MACHINES_FILE
 # NB: we know that given machines have shared NFS, so no file copy is needed
 WORKERS_IPS=""
 WORKERS_FILE="workers.txt"
+rm -f $WORKERS_FILE
+touch $WORKERS_FILE
 SERVER_FILE="server.txt"
 # Deploy workers first
 i=0
@@ -98,7 +100,7 @@ while [[ $i -lt $NB_WORKERS ]]; do
     echo "Deploying the worker in address $WORKER_IP:800$i ($WORKER_AD)..."
     CODE=1
     until [[ CODE -eq 0 ]]; do
-        ssh $WORKER_AD ./worker_remote_launch.sh -i $i -p 800$i -b $BIN
+        ssh $WORKER_AD $DIRNAME/worker_remote_launch.sh -i $i -p 800$i -b $BIN
         CODE=$?
         sleep 1
     done
@@ -111,6 +113,8 @@ done
 echo "Launched workers: $WORKERS_IPS"
 
 #Deploy the server
+rm -f $SERVER_FILE
+touch $SERVER_FILE
 SERVER_AD=${MACHINES[i]}
 SERVER_IP=""
 until [[ -n "$SERVER_IP" ]]; do
@@ -120,7 +124,7 @@ done
 echo "Deploying the server in address $SERVER_IP:$SERVER_PORT ($SERVER_AD)..."
 CODE=1
 until [[ CODE -eq 0 ]]; do
-    ssh $SERVER_AD ./server_remote_launch.sh -p $SERVER_PORT -a "\"${WORKERS_IPS}\"" -c $CHUNK_SIZE -b $BIN
+    ssh $SERVER_AD $DIRNAME/server_remote_launch.sh -p $SERVER_PORT -a "\"${WORKERS_IPS}\"" -c $CHUNK_SIZE -b $BIN
     CODE=$?
     sleep 1
 done
