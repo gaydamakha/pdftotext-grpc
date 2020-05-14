@@ -1,8 +1,8 @@
 #!/bin/bash
 
-usage() { echo "Usage: -p <port> -a <addresses of workers> -c <chunk size>"; exit 1; }
+usage() { echo "Usage: -p <port> -a <addresses of workers> -c <chunk size> -b <path to binary>"; exit 1; }
 
-while getopts ":p:a:c:" o; do
+while getopts ":p:a:c:b:" o; do
     case "${o}" in
         p)
             PORT=${OPTARG}
@@ -12,6 +12,9 @@ while getopts ":p:a:c:" o; do
             ;;
         c)
             CHUNK_SIZE=${OPTARG}
+            ;;
+        b)
+            BIN=${OPTARG}
             ;;
         *)
             usage
@@ -35,14 +38,19 @@ if [[ -z "${CHUNK_SIZE}" ]]; then
     usage
 fi
 
+if [[ -z "${BIN}" ]]; then
+    usage
+fi
+
+SRC_DIR=$HOME/source-code/
 SERVER_DIR=$HOME/server
 
 mkdir -p $SERVER_DIR
 
-nohup $HOME/ter-grpc serve \
+nohup $BIN \
     --port $PORT \
-    --certificate $HOME/localhost.cert \
-    --key $HOME/localhost.key \
+    --certificate $SRC_DIR/certs/localhost.cert \
+    --key $SRC_DIR/certs/localhost.key \
     --compress \
     --chunk-size $CHUNK_SIZE \
     --workers "${WORKERS}" > $SERVER_DIR/logs.txt 2> $SERVER_DIR/error_logs.txt &
