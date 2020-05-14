@@ -1,14 +1,17 @@
 #!/bin/bash
 
-usage() { echo "Usage: $0 -i <worker_id> -p <port>"; exit 1; }
+usage() { echo "Usage: $0 -i <worker_id> -p <port> -b <path to binary>"; exit 1; }
 
-while getopts ":i:p:" o; do
+while getopts ":i:p:b:" o; do
     case "${o}" in
         i)
             WORKER_ID=${OPTARG}
             ;;
         p)
             PORT=${OPTARG}
+            ;;
+        b)
+            BIN=${OPTARG}
             ;;
         *)
             usage
@@ -27,15 +30,20 @@ if [[ -z "${WORKER_ID}" ]]; then
     usage
 fi
 
-WORKER_DIR=${HOME}/worker_${WORKER_ID}
-LOGS_DIR=${WORKER_DIR}/logs
+if [[ -z "${BIN}" ]]; then
+    usage
+fi
 
-# Will create a WORKER_DIR too
+SRC_DIR=$HOME/source-code/
+WORKER_DIR=$HOME/worker_$WORKER_ID
+LOGS_DIR=$WORKER_DIR/logs
+
+# Will create the WORKER_DIR too
 mkdir -p ${LOGS_DIR}
 
-nohup $HOME/ter-grpc worker-serve \
+nohup $BIN worker-serve \
     --port 800${WORKER_ID} \
-    --certificate $HOME/localhost.cert \
-    --key $HOME/localhost.key > $LOGS_DIR/logs.txt 2> $LOGS_DIR/error_logs.txt &
+    --certificate $SRC_DIR/certs/localhost.cert \
+    --key $SRC_DIR/certs/localhost.key > $LOGS_DIR/logs.txt 2> $LOGS_DIR/error_logs.txt &
 
-echo $! > ${WORKER_DIR}/pid.txt
+echo $! > $WORKER_DIR/pid.txt
