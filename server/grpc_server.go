@@ -81,8 +81,8 @@ func NewServerGRPC(cfg ServerGRPCConfig) (s ServerGRPC, err error) {
 	s.compress = cfg.Compress
 	s.nbWorkers = len(cfg.AdWorkers)
 	s.workerCount = 0
-	s.incomingFolder = "pdftotext/incoming/"
-	s.outgoingFolder = "pdftotext/outgoing/"
+	s.incomingFolder = "/tmp/pdftotext/incoming/"
+	s.outgoingFolder = "/tmp/pdftotext/outgoing/"
 	s.workermtx = &sync.RWMutex{}
 	s.reqmtx = &sync.RWMutex{}
 	s.requests = make(map[string]chan workerRequest)
@@ -166,7 +166,8 @@ func (s *ServerGRPC) Listen() (err error) {
 // interface which is responsible for receiving a stream of
 // chunks that form a complete file.
 func (s *ServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextService_UploadPdfAndGetTextServer) (err error) {
-	fn := "pdftotext.pdf"
+	uuid := uuid.New().String()
+	fn := s.incomingFolder + "pdftotext" + uuid + ".pdf"
 
 	file, err := messaging.ReceiveFile(stream, fn)
 	if err != nil {
@@ -174,7 +175,7 @@ func (s *ServerGRPC) UploadPdfAndGetText(stream messaging.PdftotextService_Uploa
 	}
 
 	s.logger.Info().Msg("upload received: processing the text")
-	txtfn := "pdftotext.txt"
+	txtfn := s.outgoingFolder + "pdftotext" + uuid+ ".txt"
 	_, err = exec.Command("pdftotext", fn, txtfn).Output()
 	if err != nil {
 		err = errors.Wrapf(err,
