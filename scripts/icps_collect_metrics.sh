@@ -29,6 +29,8 @@ mkdir -p $TXT_DIR
 #Launch different number of workers
 for NB_WORKERS in "${ARR_NB_WORKERS[@]}"; do
     RESULTS_FN=$RESULTS_DIR/results-nbwrks-$NB_WORKERS.txt
+    # Clear the file if it exists
+    >$RESULTS_FN
     #The initial server chunk size value
     SERVER_CHUNK_SIZE=16
     while [ $SERVER_CHUNK_SIZE -le $MAX_CHUNK_SIZE ]; do
@@ -60,7 +62,8 @@ for NB_WORKERS in "${ARR_NB_WORKERS[@]}"; do
                     #repeat until successfull or number of tries is achieved
                     until [[ $CODE -eq 0 || $TRY -gt $MAX_TRIES ]]; do
                         ITER_TIME=$($BIN pdftotext --bidirectional=true --compress=true --root-certificate $SRC_DIR/certs/localhost.cert \
-                            --file $FILENAME --address $SERVER_IP:$SERVER_PORT --iters $NB_FILES --txt-dir $TXT_DIR/)
+                            --file $FILENAME --address $SERVER_IP:$SERVER_PORT --iters $NB_FILES --txt-dir $TXT_DIR/ \
+                            --chunk-size $CLIENT_CHUNK_SIZE)
                         CODE=$?
                         ((TRY++))
                     done

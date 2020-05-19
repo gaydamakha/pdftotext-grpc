@@ -85,8 +85,7 @@ mapfile -t MACHINES <$MACHINES_FILE
 # NB: we know that given machines have shared NFS, so no file copy is needed
 WORKERS_IPS=""
 WORKERS_FILE="workers.txt"
-rm -f $WORKERS_FILE
-touch $WORKERS_FILE
+>$WORKERS_FILE
 SERVER_FILE="server.txt"
 # Deploy workers first
 i=0
@@ -113,8 +112,8 @@ done
 echo "Launched workers: $WORKERS_IPS"
 
 #Deploy the server
-rm -f $SERVER_FILE
-touch $SERVER_FILE
+#Clear the file
+>$SERVER_FILE
 SERVER_AD=${MACHINES[i]}
 SERVER_IP=""
 until [[ -n "$SERVER_IP" ]]; do

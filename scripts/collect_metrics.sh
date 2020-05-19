@@ -67,7 +67,8 @@ for NB_WORKERS in "${ARR_NB_WORKERS[@]}"; do
                     #repeat until successfull or number of tries is achieved
                     until [[ $CODE -eq 0 || $TRY -gt $MAX_TRIES ]]; do
                         ITER_TIME=$($GOPATH/bin/ter-grpc pdftotext --bidirectional=true --compress=true --root-certificate $DIRNAME/../certs/localhost.cert \
-                            --file $FILENAME --address $SERVER_IP:$SERVER_PORT --iters $NB_FILES --txt-dir $TXT_DIR)
+                            --file $FILENAME --address $SERVER_IP:$SERVER_PORT --iters $NB_FILES --txt-dir $TXT_DIR\
+                            --chunk-size $CLIENT_CHUNK_SIZE)
                         CODE=$?
                         ((TRY++))
                     done
